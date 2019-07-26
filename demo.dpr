@@ -1,8 +1,8 @@
-program Project1;
+program demo;
 
 uses
   Forms,
-  Unit1 in 'Unit1.pas' {Form1},
+  ufrmdemo in 'ufrmdemo.pas' {Form1},
   libiscsi in 'libiscsi.pas';
 
 {$R *.res}

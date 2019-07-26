@@ -1,4 +1,4 @@
-unit Unit1;
+unit ufrmdemo;
 
 interface
 
@@ -17,7 +17,6 @@ type
     Button5: TButton;
     Button6: TButton;
     Button7: TButton;
-    Button8: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -26,7 +25,6 @@ type
     procedure Button5Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
     procedure Button7Click(Sender: TObject);
-    procedure Button8Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -466,30 +464,6 @@ if da<>nil then
 end;
 
 
-procedure TForm1.Button8Click(Sender: TObject);
-var
-size,max:int64;
-data:pointer;
-ptr:dword;
-begin
-size:=(1024*1024)+512;
-max:=256*1024;
-data:=AllocMem(size);
-//
-memo1.Lines.Add('size='+inttostr(size));
-memo1.Lines.Add(inttohex(dword(data),4) + ' - ' + inttohex(dword(data)+size,4));
-//
-ptr:=dword(data);
-while ptr<dword(data)+size do
-begin
-//pointer(ptr) ...
-if ptr+max>dword(data)+size then max:=(dword(data)+size)-ptr;
-memo1.Lines.Add(inttohex(ptr,4)+' : '+inttohex(max,4));
-ptr:=ptr+max;
-end;
 
-freemem(data); 
-
-end;
 
 end.
