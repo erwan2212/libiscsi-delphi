@@ -100,7 +100,7 @@ Conditionals=
 DebugSourceDirs=
 UsePackages=0
 [Parameters]
-RunParams=write iscsi://192.168.1.144/iqn.2008-08.com.starwindsoftware:erwan-pc2-test2/0
+RunParams=read iscsi://192.168.1.144/iqn.2008-08.com.starwindsoftware:erwan-pc2-test2/0 16777216 33554432
 HostApplication=
 Launcher=
 UseLauncher=0

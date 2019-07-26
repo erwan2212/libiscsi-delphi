@@ -97,6 +97,7 @@ lun:=Piscsi_url(url)^.lun ;
 buf_size:=1024*256; //256k max, above will crash iscsi service
 lba:=offset div block_size ;
 lun_size:=(total_lba+1)*block_size;
+if len=0 then else lun_size:=offset+len;
 total:=0;
 
 data:=allocmem(buf_size);
@@ -104,7 +105,7 @@ data:=allocmem(buf_size);
 fn:='lun#'+inttostr(lun)+'.img';
 if filename<>'' then fn:=filename;
 hFile := CreateFile(PChar(fn), GENERIC_READ, FILE_SHARE_WRITE, nil, OPEN_EXISTING , FILE_ATTRIBUTE_NORMAL, 0);
-if not FileExists(filename) then
+if not FileExists(fn) then
   begin
   writeln(filename+' does not exist');
   exit;
@@ -169,12 +170,12 @@ lba:=offset div block_size ;
 data:=nil;
 buf_size:=1024*256;
 lun_size:=(total_lba+1)*block_size;
-if len=0 then len:=lun_size else lun_size:=offset+len;
+if len=0 then  else lun_size:=offset+len;
 total:=0;
 
 fn:='lun#'+inttostr(lun)+'.img';
 if filename<>'' then fn:=filename;
-if not FileExists(filename) then
+if not FileExists(fn) then
   begin
   writeln(filename+' does not exist');
   exit;
@@ -341,7 +342,7 @@ begin
   begin
   writeln('iscsic discover iscsi-portal');
   writeln('iscsic capacity iscsi-url');
-  writeln('iscsic read iscsi-url [offset] [len]');
+  writeln('iscsic read iscsi-url [offset] [len] [fname]');
   writeln('iscsic write iscsi-url [offset] [len] [fname]'); 
   exit;
   end;
