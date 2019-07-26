@@ -113,7 +113,7 @@ end;
 
 procedure iscsi_log_to_stderr(level:integer;msg:pchar);cdecl;
 begin
-form1.Memo1.Lines.Add('msg:'+strpas(msg));
+form1.Memo1.Lines.Add('log:'+strpas(msg));
 end;
 
 
@@ -143,8 +143,12 @@ if iscsi_is_logged_in(iscsi)=1 then
 iscsi_set_log_level(iscsi,10);
 iscsi_set_log_fn(iscsi,@iscsi_log_to_stderr);
 //
-//url := iscsi_parse_portal_url(iscsi, pchar(txturl.text));
 url := iscsi_parse_full_url(iscsi, pchar(txturl.text));
+if url=nil then
+  begin
+  memo1.Lines.Add('could not parse '+ txturl.text);
+  exit;
+  end;
 
 portal:=Piscsi_url(url)^.portal ;
 target:=Piscsi_url(url)^.target ;
@@ -400,9 +404,9 @@ end;
 
 procedure TForm1.Button7Click(Sender: TObject);
 var
-ret,lun,i:integer;
-
-portal,target:pchar;
+ret,i:integer;
+task:pointer;
+portal:pchar;
 returned_lba:int64;
 da,next:pointer;
 begin
@@ -421,12 +425,11 @@ if iscsi_is_logged_in(iscsi)=1 then
 iscsi_set_log_level(iscsi,10);
 iscsi_set_log_fn(iscsi,@iscsi_log_to_stderr);
 //
-//url := iscsi_parse_portal_url(iscsi, pchar(txturl.text));
-url := iscsi_parse_full_url(iscsi, pchar(txturl.text));
+url := iscsi_parse_portal_url(iscsi, pchar(txturl.text));
+//url := iscsi_parse_full_url(iscsi, pchar(txturl.text));
 
 portal:=Piscsi_url(url)^.portal ;
-target:=Piscsi_url(url)^.target ;
-lun:=Piscsi_url(url)^.lun ;
+
 //
 if iscsi_set_session_type(iscsi, ISCSI_SESSION_DISCOVERY )<>0 then memo1.Lines.Add('iscsi_set_targetname failed');
 //
@@ -450,7 +453,15 @@ if da<>nil then
   next:=da;
   while next<>nil do
     begin
-    memo1.Lines.Add(Piscsi_discovery_address(da)^.target_name );
+    memo1.Lines.Add('iscsi://'+portal+'/'+Piscsi_discovery_address(da)^.target_name );
+    {//only in a normal session
+    task:=iscsi_reportluns_sync(iscsi,0,16);
+    if task<>nil then
+      begin
+      memo1.Lines.Add(inttostr(Pscsi_task(task)^.datain.size ));
+      scsi_free_scsi_task(task);
+      end;
+    }
     next:=Piscsi_discovery_address(da)^.next ;
     {
     if Piscsi_discovery_address(da)^.portals <>nil

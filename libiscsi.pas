@@ -303,6 +303,7 @@ var
 
   iscsi_discovery_sync:function(iscsi_context:pointer):pointer;cdecl;
   iscsi_free_discovery_data:procedure(iscsi_context:pointer;da:pointer);cdecl;
+  iscsi_reportluns_sync:function(iscsi_context:pointer;report_type:integer;alloc_len:integer):pointer;cdecl;
 
 implementation
 
@@ -366,6 +367,7 @@ if lib=thandle(-1) then exit;
 
 @iscsi_discovery_sync:=getprocaddress(lib,'iscsi_discovery_sync');
 @iscsi_free_discovery_data:=getprocaddress(lib,'iscsi_free_discovery_data');
+@iscsi_reportluns_sync:=getprocaddress(lib,'iscsi_reportluns_sync');
 
 
 if not assigned (iscsi_create_context) then raise exception.create('iscsi_create_context unassigned');
