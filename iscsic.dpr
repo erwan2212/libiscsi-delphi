@@ -78,14 +78,80 @@ if ret<>0 then
 result:=true;
 end;
 
-function read(iscsi_url:string;offset:int64=0;len:int64=0):boolean;
+
+function iscsi_write(iscsi_url:string;offset:int64=0;len:int64=0;filename:string=''):boolean;
+var
+//task,
+data:pointer;
+lun,status,byteswritten:integer;
+buf_size:dword;
+lun_size,lba,total:int64;
+fn:string;
+hfile:thandle;
+bytesread:cardinal;
+begin
+if iscsi =nil then exit;
+
+lun:=Piscsi_url(url)^.lun ;
+buf_size:=1024*256; //256k max, above will crash iscsi service
+lba:=offset div block_size ;
+lun_size:=(total_lba+1)*block_size;
+total:=0;
+
+data:=allocmem(buf_size);
+
+fn:='lun#'+inttostr(lun)+'.img';
+if filename<>'' then fn:=filename;
+hFile := CreateFile(PChar(fn), GENERIC_READ, FILE_SHARE_WRITE, nil, OPEN_EXISTING , FILE_ATTRIBUTE_NORMAL, 0);
+
+
+while offset<lun_size   do  
+begin
+
+if readfile(hFile, data^, buf_size, bytesread, nil)=false then
+      begin
+      writeln('writefile error');
+      break;
+      end;
+
+status:=write16(lun,lba,data,bytesread,byteswritten );
+
+if status<>0 then
+  begin
+  writeln('status='+inttostr(status));
+  writeln('error:'+strpas(iscsi_get_error(iscsi)));
+  exit;
+  end
+  else
+  begin
+  write('.');
+  total:=total+ byteswritten;
+  end;
+
+inc(offset,buf_size);
+lba:=offset div block_size;
+end; //while 1=1 do
+
+freemem(data,buf_size);
+closehandle(hfile);
+writeln;
+writeln('done ... '+inttostr(total)+ ' written to iscsi ...');
+
+
+end;
+
+
+
+
+function iscsi_read(iscsi_url:string;offset:int64=0;len:int64=0;filename:string=''):boolean;
 var
 data:pointer;
 lun,status,bytesread:integer;
 ptr,buf_size,i:dword;
-lba,lun_size:int64;
+lba,lun_size,total:int64;
 hFile:thandle;
 byteswritten:cardinal;
+fn:string;
 begin
 if iscsi =nil then exit;
 
@@ -97,8 +163,11 @@ data:=nil;
 buf_size:=1024*256;
 lun_size:=(total_lba+1)*block_size;
 if len=0 then len:=lun_size else lun_size:=offset+len;
+total:=0;
 
-hFile := CreateFile(PChar('disk.img'), GENERIC_WRITE, FILE_SHARE_WRITE, nil, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+fn:='lun#'+inttostr(lun)+'.img';
+if filename<>'' then fn:=filename;
+hFile := CreateFile(PChar(fn), GENERIC_WRITE, FILE_SHARE_WRITE, nil, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 
 
 while offset<lun_size   do  
@@ -130,6 +199,7 @@ if status<>0 then
       writeln('writefile error');
       break;
       end;
+    total:=total+bytesread;
     freemem(data,bytesread);
     end;//if bytesread>0 then
   end;//if status<>0 then
@@ -137,7 +207,8 @@ inc(offset,buf_size);
 lba:=offset div block_size;
 end; //while 1=1 do
 closehandle(hfile);
-writeln('done');
+writeln;
+writeln('done ...'+inttostr(total)+' read from iscsi ...');
 end;
 
 
@@ -255,7 +326,9 @@ begin
   writeln('iscsic 0.1 by erwan2212@gmail.com');
   if paramcount=0 then
   begin
-  writeln('iscsic discover iscsi-url');
+  writeln('iscsic discover iscsi-portal');
+  writeln('iscsic capacity iscsi-url');
+  writeln('iscsic read iscsi-url [offset] [len]');  
   exit;
   end;
 
@@ -275,13 +348,25 @@ begin
 
   if lowercase(paramstr(1))='read' then
     begin
-    if paramcount=2 then
+    if paramcount>=2 then
       begin
       if connect(paramstr(2))=false then exit;
       if readcapacity10(Piscsi_url(url)^.lun)<>0 then exit;      
-      if paramcount=3 then offset:=strtoint64(paramstr(3));
-      if paramcount=4 then len:=strtoint64(paramstr(4));
-      read(paramstr(2),offset,len);
+      if paramcount>=3 then offset:=strtoint64(paramstr(3));
+      if paramcount>=4 then len:=strtoint64(paramstr(4));
+      iscsi_read(paramstr(2),offset,len);
+      end;
+    end;
+
+  if lowercase(paramstr(1))='write' then
+    begin
+    if paramcount>=2 then
+      begin
+      if connect(paramstr(2))=false then exit;
+      if readcapacity10(Piscsi_url(url)^.lun)<>0 then exit;      
+      if paramcount>=3 then offset:=strtoint64(paramstr(3));
+      if paramcount>=4 then len:=strtoint64(paramstr(4));
+      iscsi_write(paramstr(2),offset,len);
       end;
     end;
 
