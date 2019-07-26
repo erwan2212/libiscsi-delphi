@@ -12,6 +12,25 @@ len:int64=0;
 offset:int64=0;
 fname:string='';
 
+function GetEnvVarValue(const VarName: string): string;
+var
+  BufSize: Integer;  // buffer size required for value
+begin
+  // Get required buffer size (inc. terminal #0)
+  BufSize := GetEnvironmentVariable(
+    PChar(VarName), nil, 0);
+  if BufSize > 0 then
+  begin
+    // Read env var value into result string
+    SetLength(Result, BufSize - 1);
+    GetEnvironmentVariable(PChar(VarName),
+      PChar(Result), BufSize);
+  end
+  else
+    // No such environment variable
+    Result := '';
+end;
+
 procedure iscsi_log_to_stderr(level:integer;msg:pchar);cdecl;
 begin
 writeln('log:'+strpas(msg));
@@ -175,11 +194,7 @@ total:=0;
 
 fn:='lun#'+inttostr(lun)+'.img';
 if filename<>'' then fn:=filename;
-if not FileExists(fn) then
-  begin
-  writeln(filename+' does not exist');
-  exit;
-  end;
+
 
 hFile := CreateFile(PChar(fn), GENERIC_WRITE, FILE_SHARE_WRITE, nil, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 
@@ -343,18 +358,22 @@ begin
   writeln('iscsic discover iscsi-portal');
   writeln('iscsic capacity iscsi-url');
   writeln('iscsic read iscsi-url [offset] [len] [fname]');
-  writeln('iscsic write iscsi-url [offset] [len] [fname]'); 
+  writeln('iscsic write iscsi-url [offset] [len] [fname]');
+  writeln('set dos variable log=true to get verbosity'); 
   exit;
   end;
 
+  //if pos('verbose',cmdline)>0 then log:=true;
+  if GetEnvVarValue('log')='true' then log:=true;
+
   if lowercase(paramstr(1))='discover' then
     begin
-    if paramcount=2 then discover(paramstr(2));
+    if paramcount>=2 then discover(paramstr(2));
     end;
 
   if lowercase(paramstr(1))='capacity' then
     begin
-    if paramcount=2 then
+    if paramcount>=2 then
       begin
       if connect(paramstr(2))=false then exit;
       capacity(paramstr(2));
