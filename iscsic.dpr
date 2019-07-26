@@ -328,7 +328,8 @@ begin
   begin
   writeln('iscsic discover iscsi-portal');
   writeln('iscsic capacity iscsi-url');
-  writeln('iscsic read iscsi-url [offset] [len]');  
+  writeln('iscsic read iscsi-url [offset] [len]');
+  writeln('iscsic write iscsi-url [offset] [len]'); 
   exit;
   end;
 
