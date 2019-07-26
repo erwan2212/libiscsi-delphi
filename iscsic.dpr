@@ -10,6 +10,7 @@ var
 log:boolean=false;
 len:int64=0;
 offset:int64=0;
+fname:string='';
 
 procedure iscsi_log_to_stderr(level:integer;msg:pchar);cdecl;
 begin
@@ -103,7 +104,13 @@ data:=allocmem(buf_size);
 fn:='lun#'+inttostr(lun)+'.img';
 if filename<>'' then fn:=filename;
 hFile := CreateFile(PChar(fn), GENERIC_READ, FILE_SHARE_WRITE, nil, OPEN_EXISTING , FILE_ATTRIBUTE_NORMAL, 0);
+if not FileExists(filename) then
+  begin
+  writeln(filename+' does not exist');
+  exit;
+  end;
 
+//note that offset applies to iscsi target, not to source file
 
 while offset<lun_size   do  
 begin
@@ -167,6 +174,12 @@ total:=0;
 
 fn:='lun#'+inttostr(lun)+'.img';
 if filename<>'' then fn:=filename;
+if not FileExists(filename) then
+  begin
+  writeln(filename+' does not exist');
+  exit;
+  end;
+
 hFile := CreateFile(PChar(fn), GENERIC_WRITE, FILE_SHARE_WRITE, nil, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 
 
@@ -329,7 +342,7 @@ begin
   writeln('iscsic discover iscsi-portal');
   writeln('iscsic capacity iscsi-url');
   writeln('iscsic read iscsi-url [offset] [len]');
-  writeln('iscsic write iscsi-url [offset] [len]'); 
+  writeln('iscsic write iscsi-url [offset] [len] [fname]'); 
   exit;
   end;
 
@@ -367,7 +380,8 @@ begin
       if readcapacity10(Piscsi_url(url)^.lun)<>0 then exit;      
       if paramcount>=3 then offset:=strtoint64(paramstr(3));
       if paramcount>=4 then len:=strtoint64(paramstr(4));
-      iscsi_write(paramstr(2),offset,len);
+      if paramcount>=5 then fname:=paramstr(5);
+      iscsi_write(paramstr(2),offset,len,fname);
       end;
     end;
 
