@@ -8,6 +8,8 @@ uses
 
 var
 log:boolean=false;
+len:int64=0;
+offset:int64=0;
 
 procedure iscsi_log_to_stderr(level:integer;msg:pchar);cdecl;
 begin
@@ -76,12 +78,12 @@ if ret<>0 then
 result:=true;
 end;
 
-function read(iscsi_url:string;pos:int64=0):boolean;
+function read(iscsi_url:string;offset:int64=0;len:int64=0):boolean;
 var
 data:pointer;
 lun,status,bytesread:integer;
-ptr,size,i:dword;
-lba:int64;
+ptr,buf_size,i:dword;
+lba,lun_size:int64;
 hFile:thandle;
 byteswritten:cardinal;
 begin
@@ -90,18 +92,23 @@ if iscsi =nil then exit;
 
 
 lun:=Piscsi_url(url)^.lun ;
-pos:=0;lba:=0;
+lba:=offset div block_size ;
 data:=nil;
-size:=1024*256;
+buf_size:=1024*256;
+lun_size:=(total_lba+1)*block_size;
+if len=0 then len:=lun_size else lun_size:=offset+len;
 
 hFile := CreateFile(PChar('disk.img'), GENERIC_WRITE, FILE_SHARE_WRITE, nil, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 
 
-while lba<=total_lba do
+while offset<lun_size   do  
 begin
-
-data:=allocmem(size);
-status:=read16(lun,lba,size,data,bytesread);
+//not sure the below is needed...
+//if offset+size>lun_size then size:=lun_size-offset;
+//the below could be consuming, we could allocate the buffer only one?
+data:=allocmem(buf_size);
+status:=read16(lun,lba,buf_size,data,bytesread);
+if bytesread <> buf_size then writeln('??');
 
 //if task=nil then
 if status<>0 then
@@ -118,7 +125,6 @@ if status<>0 then
   write('.');
   if bytesread>0 then
     begin
-    //for i:=0 to size -1 do write(pchar(pointer(dword(data)+1)));
     if WriteFile(hFile, data^, bytesread, byteswritten, nil)=false then
       begin
       writeln('writefile error');
@@ -127,8 +133,8 @@ if status<>0 then
     freemem(data,bytesread);
     end;//if bytesread>0 then
   end;//if status<>0 then
-inc(pos,size);
-lba:=pos div block_size;
+inc(offset,buf_size);
+lba:=offset div block_size;
 end; //while 1=1 do
 closehandle(hfile);
 writeln('done');
@@ -220,8 +226,8 @@ if da<>nil then
   next:=da;
   while next<>nil do
     begin
-    writeln('target:'+'iscsi://'+portal+'/'+Piscsi_discovery_address(da)^.target_name );
-    next:=Piscsi_discovery_address(da)^.next ;
+    writeln('target:'+'iscsi://'+portal+'/'+Piscsi_discovery_address(next)^.target_name );
+    next:=Piscsi_discovery_address(next)^.next ;
     {
     if Piscsi_discovery_address(da)^.portals <>nil
       then writeln(piscsi_target_portal(Piscsi_discovery_address(da)^.portals)^.portal );
@@ -273,7 +279,9 @@ begin
       begin
       if connect(paramstr(2))=false then exit;
       if readcapacity10(Piscsi_url(url)^.lun)<>0 then exit;      
-      read(paramstr(2));
+      if paramcount=3 then offset:=strtoint64(paramstr(3));
+      if paramcount=4 then len:=strtoint64(paramstr(4));
+      read(paramstr(2),offset,len);
       end;
     end;
 
