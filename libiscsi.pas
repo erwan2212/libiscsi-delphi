@@ -389,10 +389,10 @@ if task<>nil then
     begin
     //lets get a point to our data
     CopyMemory(@ptr,@Pscsi_task(task)^.datain.data[0],4);
-    //we alloc mem just in time
-    data:=allocmem(Pscsi_task(task)^.datain.size);
+    //we alloc mem just in time, if needed
+    if data=nil then data:=allocmem(Pscsi_task(task)^.datain.size);
     CopyMemory(data,pointer(ptr),Pscsi_task(task)^.datain.size);
-    //we trust the caller to free memoru
+    //we trust the caller to free memory
     //freemem(data,size);
     end;
   scsi_free_scsi_task(task);
@@ -422,6 +422,7 @@ ptr:dword;
 //buffer:array [0..512-1] of byte;
 begin
 //
+result:=-1;
 task := iscsi_readcapacity10_sync(iscsi, lun, 0, 0);
 //task := iscsi_readcapacity16_sync(iscsi, lun);
 
