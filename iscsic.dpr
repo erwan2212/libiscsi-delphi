@@ -290,7 +290,8 @@ if log=true then
   iscsi_set_log_fn(iscsi,@iscsi_log_to_stderr);
   end;
 //
-//url := iscsi_parse_portal_url(iscsi, pchar(txturl.text));
+if pos('iscsi://',lowercase(iscsi_url))=0 then iscsi_url:='iscsi://'+iscsi_url;
+//
 url := iscsi_parse_portal_url(iscsi, pchar(iscsi_url));
 if url=nil then
   begin
