@@ -16,6 +16,8 @@ type
     Button4: TButton;
     Button5: TButton;
     Button6: TButton;
+    Button7: TButton;
+    Button8: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -23,6 +25,8 @@ type
     procedure Button4Click(Sender: TObject);
     procedure Button5Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
+    procedure Button7Click(Sender: TObject);
+    procedure Button8Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -47,11 +51,7 @@ implementation
 || is called logical OR operator.
 }
 
-function Swap16(ASmallInt : SmallInt) : SmallInt ; register ;
- asm  xchg al,ah  end ;
 
-function Swap32(value : dword) : dword ; assembler ;
-  asm  bswap eax  end ;
 
 function scsi_get_uint32(d:dword):dword;
 var
@@ -120,17 +120,15 @@ end;
 
 
 
+
+
 procedure TForm1.Button1Click(Sender: TObject);
 var
 ret,lun,i:integer;
 
 portal,target:pchar;
-task:pointer;
-buffer,data:array [0..512-1] of byte;
 returned_lba:int64;
-ptr:dword;
-pv:pointer;
-iov:tscsi_iovec ;
+
 begin
 memo1.Clear ;
 init;
@@ -140,7 +138,7 @@ if iscsi=nil then iscsi := iscsi_create_context('iqn.2007-10.com.github:erwan');
 
 if iscsi_is_logged_in(iscsi)=1 then
   begin
-  memo1.Lines.Add('please disconnect first'); 
+  memo1.Lines.Add('please disconnect first');
   exit;
   end;
 
@@ -164,7 +162,7 @@ if iscsi_set_header_digest(iscsi, ISCSI_HEADER_DIGEST_CRC32C_NONE)<>0 then memo1
 ret:=iscsi_full_connect_sync (iscsi,portal,lun);
 if ret<>0 then
   begin
-  memo1.Lines.Add(strpas(iscsi_get_error(iscsi)));
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
   exit;
   end;
 
@@ -178,34 +176,14 @@ if ret<>0 then
   exit;
   end;
 }
-//
-task := iscsi_readcapacity10_sync(iscsi, lun, 0, 0);
-//task := iscsi_readcapacity16_sync(iscsi, lun);
 
-if task<>nil
-  then
-  begin
-  memo1.Lines.Add('status:'+inttostr(Pscsi_task(task)^.status ));
-  memo1.Lines.Add('cdb_size:'+inttostr(Pscsi_task(task)^.cdb_size  ));
-  memo1.Lines.Add('datain.size:'+inttostr(Pscsi_task(task)^.datain.size  ));
-  //lets get a point to our data
-  CopyMemory(@ptr,@Pscsi_task(task)^.datain.data[0],4);
-  copymemory(@total_lba,pointer(ptr),4); //is our lba size
-  total_lba:=swap32(total_lba);
+if readcapacity10(lun)=0 then
+begin
   Memo1.Lines.Add('lba size:'+inttostr(total_lba));
-  copymemory(@block_size,pointer(ptr+4),4); //is our block size
-  block_size:=swap32(block_size);
   Memo1.Lines.Add('block size:'+inttostr(block_size));
   Memo1.Lines.Add('total size:'+inttostr((total_lba+1)*block_size));
-  fillchar(buffer,sizeof(buffer),0);
-  CopyMemory(@buffer[0],task,512); //only to look at what is in the scsi task.
-  //for i:=0 to sizeof(buffer)-1 do memo1.Lines.Add(inttostr(buffer[i]));
-  if buffer[0]=0 then ;
-  scsi_free_scsi_task(task);
-  end
-  else memo1.Lines.Add(strpas(iscsi_get_error(iscsi)));
-//
-
+end
+else memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
 
 end;
 
@@ -248,7 +226,7 @@ for i:=0 to 512-1 do buffer[i] := (511 - i) and $ff;
 task:=nil;
 //getmem(pv,512);
 //task:=iscsi_write16_task(iscsi,lun,0,@buffer[0],sizeof(buffer),512,0,0,0,0,0,@iscsi_co_generic_cb,nil);
-task:=iscsi_write16_sync(iscsi,lun,0,@buffer[0],sizeof(buffer),512,0,0,0,0,0);
+task:=iscsi_write16_sync(iscsi,lun,0,@buffer[0],sizeof(buffer),block_size,0,0,0,0,0);
 
 //task:=iscsi_write10_task(iscsi,lun,0,nil,sizeof(buffer),512,0,0,0,0,0,@iscsi_co_generic_cb,nil);
 //scsi_task_set_iov_out(task, @iov, 1); will be needed in the CB  if write buffer=nil
@@ -258,7 +236,7 @@ iov.iov_len :=sizeof(buffer);
 if task=nil then
   begin
   memo1.Lines.Add('task=nil');
-  memo1.Lines.Add('msg:'+strpas(iscsi_get_error(iscsi)));
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
   end
   else
   begin
@@ -299,14 +277,14 @@ fillchar(buffer,512,$ff);
 task:=nil;
 i:=0;
 //for i:=0 to 511-1 do
-task:=iscsi_read16_sync  (iscsi,lun,0,512,512,0,0,0,0,0);
+task:=iscsi_read16_sync  (iscsi,lun,0,sizeof(buffer),block_size,0,0,0,0,0);
 //iov.iov_base :=@buffer[0];
 //iov.iov_len :=sizeof(buffer);
 //task:=iscsi_read10_iov_task(iscsi,lun,0,sizeof(buffer),512,0,0,0,0,0,@iscsi_co_generic_cb,nil,@iov,1);
 if task=nil then
   begin
   memo1.Lines.Add('task=nil');
-  memo1.Lines.Add('msg:'+strpas(iscsi_get_error(iscsi)));
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
   exit;
   end
   else
@@ -330,7 +308,7 @@ end;
 procedure TForm1.Button5Click(Sender: TObject);
 var
 task,data:pointer;
-lun:integer;
+lun,status,bytesread:integer;
 ptr,size:dword;
 lba,pos:int64;
 begin
@@ -344,41 +322,40 @@ size:=1024*256;
 while lba<=total_lba do
 begin
 
-task:=iscsi_read16_sync  (iscsi,lun,lba,size,512,0,0,0,0,0);
+//task:=iscsi_read16_sync  (iscsi,lun,lba,size,512,0,0,0,0,0);
+status:=read16(lun,lba,size,data,bytesread); 
 
-if task=nil then
+//if task=nil then
+if status<>0 then
   begin
-  memo1.Lines.Add('task=nil');
-  memo1.Lines.Add('msg:'+strpas(iscsi_get_error(iscsi)));
+  memo1.Lines.Add('status='+inttostr(status));
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
   exit;
   end
   else
   begin
-  memo1.Lines.Add('status:'+inttostr(Pscsi_task(task)^.status));
-  memo1.Lines.Add('bytes read:'+inttostr(Pscsi_task(task)^.datain.size ));
+  memo1.Lines.Add('status:'+inttostr(status));
+  memo1.Lines.Add('bytes read:'+inttostr(bytesread ));
   memo1.Lines.Add('pos:'+inttostr(pos));
-  if Pscsi_task(task)^.datain.size>0 then
+  if bytesread>0 then
     begin
-    //lets get a point to our data
-    CopyMemory(@ptr,@Pscsi_task(task)^.datain.data[0],4);
-    data:=allocmem(Pscsi_task(task)^.datain.size);
-    CopyMemory(data,pointer(ptr),Pscsi_task(task)^.datain.size);
-    freemem(data,size);
+
+
+    freemem(data,bytesread);
     end;
-  scsi_free_scsi_task(task);
-  if Pscsi_task(task)^.status<>0 then exit;
-  task:=nil;
+
   end;
 inc(pos,size);
-lba:=pos div 512;
+lba:=pos div block_size;
 end; //while 1=1 do
 
 end;
 
 procedure TForm1.Button6Click(Sender: TObject);
 var
-task,data:pointer;
-lun:integer;
+//task,
+data:pointer;
+lun,status,byteswritten:integer;
 size:dword;
 lba,pos:int64;
 begin
@@ -394,29 +371,124 @@ while lba<=total_lba do
 begin
 
 
-task:=iscsi_write16_sync(iscsi,lun,lba,data,size,512,0,0,0,0,0);
 
-if task=nil then
+//task:=iscsi_write16_sync(iscsi,lun,lba,data,size,512,0,0,0,0,0);
+
+status:=write16(lun,lba,data,size,byteswritten);
+
+//if task=nil then
+if status<>0 then
   begin
-  memo1.Lines.Add('task=nil');
-  memo1.Lines.Add('msg:'+strpas(iscsi_get_error(iscsi)));
+  //memo1.Lines.Add('task=nil');
+  memo1.Lines.Add('status='+inttostr(status));
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
   exit;
   end
   else
   begin
-  memo1.Lines.Add('status:'+inttostr(Pscsi_task(task)^.status));
-  memo1.Lines.Add('bytes written:'+inttostr(Pscsi_task(task)^.expxferlen));
+  memo1.Lines.Add('status:'+inttostr(status));
+  memo1.Lines.Add('bytes written:'+inttostr(byteswritten));
   memo1.Lines.Add('pos:'+inttostr(pos));
-  scsi_free_scsi_task(task);
-  if Pscsi_task(task)^.status<>0 then exit;
-  task:=nil;
+
   end;
 
 inc(pos,size);
-lba:=pos div 512;
+lba:=pos div block_size;
 end; //while 1=1 do
 
 freemem(data,size);
+
+end;
+
+procedure TForm1.Button7Click(Sender: TObject);
+var
+ret,lun,i:integer;
+
+portal,target:pchar;
+returned_lba:int64;
+da,next:pointer;
+begin
+memo1.Clear ;
+init;
+
+//
+if iscsi=nil then iscsi := iscsi_create_context('iqn.2007-10.com.github:erwan');
+
+if iscsi_is_logged_in(iscsi)=1 then
+  begin
+  memo1.Lines.Add('please disconnect first');
+  exit;
+  end;
+
+iscsi_set_log_level(iscsi,10);
+iscsi_set_log_fn(iscsi,@iscsi_log_to_stderr);
+//
+//url := iscsi_parse_portal_url(iscsi, pchar(txturl.text));
+url := iscsi_parse_full_url(iscsi, pchar(txturl.text));
+
+portal:=Piscsi_url(url)^.portal ;
+target:=Piscsi_url(url)^.target ;
+lun:=Piscsi_url(url)^.lun ;
+//
+if iscsi_set_session_type(iscsi, ISCSI_SESSION_DISCOVERY )<>0 then memo1.Lines.Add('iscsi_set_targetname failed');
+//
+ret:=iscsi_connect_sync(iscsi,portal);
+if ret<>0 then
+  begin
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
+  exit;
+  end;
+//
+ret:=iscsi_login_sync(iscsi);
+if ret<>0 then
+  begin
+  memo1.Lines.Add('error:'+strpas(iscsi_get_error(iscsi)));
+  exit;
+  end;
+//
+da:=iscsi_discovery_sync(iscsi);
+if da<>nil then
+  begin
+  next:=da;
+  while next<>nil do
+    begin
+    memo1.Lines.Add(Piscsi_discovery_address(da)^.target_name );
+    next:=Piscsi_discovery_address(da)^.next ;
+    {
+    if Piscsi_discovery_address(da)^.portals <>nil
+      then memo1.Lines.Add(piscsi_target_portal(Piscsi_discovery_address(da)^.portals)^.portal );
+    }
+    end;
+  iscsi_free_discovery_data(iscsi,da);
+  end;
+//
+//memo1.Lines.Add('ok');
+end;
+
+
+procedure TForm1.Button8Click(Sender: TObject);
+var
+size,max:int64;
+data:pointer;
+ptr:dword;
+begin
+size:=(1024*1024)+512;
+max:=256*1024;
+data:=AllocMem(size);
+//
+memo1.Lines.Add('size='+inttostr(size));
+memo1.Lines.Add(inttohex(dword(data),4) + ' - ' + inttohex(dword(data)+size,4));
+//
+ptr:=dword(data);
+while ptr<dword(data)+size do
+begin
+//pointer(ptr) ...
+if ptr+max>dword(data)+size then max:=(dword(data)+size)-ptr;
+memo1.Lines.Add(inttohex(ptr,4)+' : '+inttohex(max,4));
+ptr:=ptr+max;
+end;
+
+freemem(data); 
 
 end;
 

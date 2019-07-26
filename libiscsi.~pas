@@ -108,6 +108,19 @@ uses windows,sysutils,winsock;
 	ISCSI_HEADER_DIGEST_CRC32C_NONE = 2;
 	ISCSI_HEADER_DIGEST_CRC32C      = 3;
 
+type tiscsi_target_portal =record
+       iscsi_target_portal :pointer;
+       portal:pchar
+end;
+
+type tiscsi_discovery_address =record
+       next:pointer;
+       target_name:pchar;
+       portals:pointer;
+end;
+Piscsi_discovery_address = ^tiscsi_discovery_address;
+
+
 {/* struct scsi_iovec follows the POSIX struct iovec
    definition and *MUST* never change. */}
 type tscsi_iovec =record
@@ -217,14 +230,17 @@ end;
 pscsi_readcapacity16 = ^tscsi_readcapacity16;  
 
 procedure init;
+function readcapacity10(lun:integer):integer;
+function write16(lun:integer;lba:int64;data:pointer;size:integer;var byteswritten:integer):integer;
+function read16(lun:integer;lba:int64;size:integer;data:pointer;var bytesread:integer):integer;
 
 var
   //
   iscsi:pointer=nil;
   url:pointer=nil;
   //
-  block_size:dword;
-  total_lba:int64;
+  block_size:dword=0;
+  total_lba:dword=0;
   //external functions
   iscsi_connect_sync:function(iscsi_context:pointer;portal:pchar):integer;cdecl;
   iscsi_full_connect_sync:function(iscsi_context:pointer;portal:pchar;lun:integer):integer;cdecl;
@@ -284,10 +300,19 @@ var
   iscsi_set_noautoreconnect:procedure(iscsi_context:pointer;state:integer);cdecl;
   iscsi_set_reconnect_max_retries:procedure(iscsi_context:pointer; count:integer);cdecl;
 
+  iscsi_discovery_sync:function(iscsi_context:pointer):pointer;cdecl;
+  iscsi_free_discovery_data:procedure(iscsi_context:pointer;da:pointer);cdecl;
+
 implementation
 
 var
 lib:thandle=thandle(-1);
+
+function Swap16(ASmallInt : SmallInt) : SmallInt ; register ;
+ asm  xchg al,ah  end ;
+
+function Swap32(value : dword) : dword ; assembler ;
+  asm  bswap eax  end ;
 
 procedure init;
 var
@@ -338,10 +363,89 @@ if lib=thandle(-1) then exit;
 @iscsi_set_noautoreconnect:=getprocaddress(lib,'iscsi_set_noautoreconnect');
 @iscsi_set_reconnect_max_retries:=getprocaddress(lib,'iscsi_set_reconnect_max_retries');
 
+@iscsi_discovery_sync:=getprocaddress(lib,'iscsi_discovery_sync');
+@iscsi_free_discovery_data:=getprocaddress(lib,'iscsi_free_discovery_data');
+
 
 if not assigned (iscsi_create_context) then raise exception.create('iscsi_create_context unassigned');
 //
 WSAStartup(MAKEWORD(2,2), wsaData);
+//
+end;
+
+function read16(lun:integer;lba:int64;size:integer;data:pointer;var bytesread:integer):integer;
+var
+task:pointer;
+ptr:dword;
+begin
+result:=-1;
+task:=iscsi_read16_sync  (iscsi,lun,lba,size,block_size,0,0,0,0,0);
+if task<>nil then
+  begin
+  result:=Pscsi_task(task)^.status;
+  bytesread:=Pscsi_task(task)^.datain.size;
+  if Pscsi_task(task)^.datain.size>0 then
+    begin
+    //lets get a point to our data
+    CopyMemory(@ptr,@Pscsi_task(task)^.datain.data[0],4);
+    //we alloc mem just in time
+    data:=allocmem(Pscsi_task(task)^.datain.size);
+    CopyMemory(data,pointer(ptr),Pscsi_task(task)^.datain.size);
+    //we trust the caller to free memoru
+    //freemem(data,size);
+    end;
+  scsi_free_scsi_task(task);
+  task:=nil;
+  end;
+end;
+
+function write16(lun:integer;lba:int64;data:pointer;size:integer;var byteswritten:integer):integer;
+var
+task:pointer;
+begin
+result:=-1;
+task:=iscsi_write16_sync(iscsi,lun,lba,data,size,block_size ,0,0,0,0,0);
+if task<>nil then
+  begin
+  result:=Pscsi_task(task)^.status;
+  byteswritten:=Pscsi_task(task)^.expxferlen;
+  scsi_free_scsi_task(task);
+  task:=nil;
+  end;
+end;
+
+function readcapacity10(lun:integer):integer;
+var
+task:pointer;
+ptr:dword;
+//buffer:array [0..512-1] of byte;
+begin
+//
+task := iscsi_readcapacity10_sync(iscsi, lun, 0, 0);
+//task := iscsi_readcapacity16_sync(iscsi, lun);
+
+if task<>nil
+  then
+  begin
+  //memo1.Lines.Add('status:'+inttostr(Pscsi_task(task)^.status ));
+  //memo1.Lines.Add('cdb_size:'+inttostr(Pscsi_task(task)^.cdb_size  ));
+  //memo1.Lines.Add('datain.size:'+inttostr(Pscsi_task(task)^.datain.size  ));
+  //lets get a point to our data
+  if Pscsi_task(task)^.datain.size>0 then
+    begin
+    CopyMemory(@ptr,@Pscsi_task(task)^.datain.data[0],4);
+    copymemory(@total_lba,pointer(ptr),4); //is our lba size
+    total_lba:=swap32(total_lba);
+    copymemory(@block_size,pointer(ptr+4),4); //is our block size
+    block_size:=swap32(block_size);
+    //fillchar(buffer,sizeof(buffer),0);
+    //CopyMemory(@buffer[0],task,512); //only to look at what is in the scsi task.
+    //if buffer[0]=0 then ;
+    end;
+  result:=Pscsi_task(task)^.status;
+  scsi_free_scsi_task(task);
+  end;
+
 //
 end;
 
