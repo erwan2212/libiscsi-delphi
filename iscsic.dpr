@@ -7,6 +7,7 @@ uses
   libiscsi in 'libiscsi.pas';
 
 var
+pipe:boolean=false;
 log:boolean=false;
 len:int64=0;
 offset:int64=0;
@@ -179,6 +180,7 @@ lba,lun_size,total:int64;
 hFile:thandle;
 byteswritten:cardinal;
 fn:string;
+//buffer:array[0..1024*256-1] of byte;
 begin
 if iscsi =nil then exit;
 
@@ -223,7 +225,14 @@ if status<>0 then
   write('.');
   if bytesread>0 then
     begin
-    if WriteFile(hFile, data^, bytesread, byteswritten, nil)=false then
+    {
+    if pipe=false then
+      begin
+      CopyMemory(@buffer[0],data,bytesread);
+      write(buffer[0]);
+      end;
+    }
+    if (WriteFile(hFile, data^, bytesread, byteswritten, nil)=false) then
       begin
       writeln('writefile error');
       break;
@@ -356,11 +365,11 @@ begin
   writeln('iscsic 0.1 by erwan2212@gmail.com');
   if paramcount=0 then
   begin
-  writeln('iscsic discover iscsi-portal');
-  writeln('iscsic capacity iscsi-url');
-  writeln('iscsic read iscsi-url [offset] [len] [fname]');
-  writeln('iscsic write iscsi-url [offset] [len] [fname]');
-  writeln('set dos variable log=true to get verbosity'); 
+  writeln('iscsic discover host');
+  writeln('iscsic capacity iscsi://host/target/lun');
+  writeln('iscsic read iscsi://host/target/lun [offset] [len] [fname]');
+  writeln('iscsic write iscsi://host/target/lun [offset] [len] [fname]');
+  writeln('set dos variable log=true to get verbosity');
   exit;
   end;
 
@@ -383,6 +392,7 @@ begin
 
   if lowercase(paramstr(1))='read' then
     begin
+    //pipe:=true;
     if paramcount>=2 then
       begin
       if connect(paramstr(2))=false then exit;
